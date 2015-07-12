@@ -13,6 +13,8 @@ import javax.persistence.EntityManager;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 
+import com.tsystems.javaschool.logiweb.LogiwebAppContext;
+import com.tsystems.javaschool.logiweb.dao.CityDao;
 import com.tsystems.javaschool.logiweb.dao.DriverDao;
 import com.tsystems.javaschool.logiweb.dao.DriverShiftJournaDao;
 import com.tsystems.javaschool.logiweb.dao.TruckDao;
@@ -36,21 +38,10 @@ public class DriverServiceImpl implements DriverService {
     
     private static final Logger LOG = Logger.getLogger(DriverServiceImpl.class);
     
-    private EntityManager em;
-    
-    private DriverDao driverDao;
-    private TruckDao truckDao;
-    private DriverShiftJournaDao driverShiftJournalDao;
+    private LogiwebAppContext ctx;
       
-    public DriverServiceImpl(DriverDao driverDao, TruckDao truckDao,DriverShiftJournaDao shiftDao, EntityManager em) {
-	this.em = em;
-	this.driverDao = driverDao;
-	this.truckDao = truckDao;
-	this.driverShiftJournalDao = shiftDao;
-    }
-
-    private EntityManager getEntityManager() {
-        return em;
+    public DriverServiceImpl(LogiwebAppContext ctx) {
+        this.ctx = ctx;
     }
     
     /**
@@ -58,18 +49,21 @@ public class DriverServiceImpl implements DriverService {
      */
     @Override
     public Set<Driver> findAllDrivers() throws LogiwebServiceException {
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverDao driverDao = ctx.createDriverDao(em);
         try {
-            getEntityManager().getTransaction().begin();
+            em.getTransaction().begin();
             Set<Driver> drivers = driverDao.findAll();
-            getEntityManager().getTransaction().commit();
+            em.getTransaction().commit();
             return drivers;
         } catch (DaoException e) {
             LOG.warn("Something unexcpected happend.");
             throw new LogiwebServiceException(e);
         } finally {
-            if (getEntityManager().getTransaction().isActive()) {
-                getEntityManager().getTransaction().rollback();
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
             }
+            em.close();
         }
     }
 
@@ -78,18 +72,21 @@ public class DriverServiceImpl implements DriverService {
      */
     @Override
     public Driver findDriverById(int id) throws LogiwebServiceException {
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverDao driverDao = ctx.createDriverDao(em);
         try {
-            getEntityManager().getTransaction().begin();
+            em.getTransaction().begin();
             Driver driver = driverDao.find(id);
-            getEntityManager().getTransaction().commit();
+            em.getTransaction().commit();
             return driver;
         } catch (DaoException e) {
             LOG.warn("Something unexcpected happend.");
             throw new LogiwebServiceException(e);
         } finally {
-            if (getEntityManager().getTransaction().isActive()) {
-                getEntityManager().getTransaction().rollback();
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
             }
+            em.close();
         }
     }
 
@@ -115,8 +112,10 @@ public class DriverServiceImpl implements DriverService {
             throw e;
         }
         
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverDao driverDao = ctx.createDriverDao(em);
         try {
-            getEntityManager().getTransaction().begin();
+            em.getTransaction().begin();
             Driver driverWithSameEmployeeId = driverDao
                     .findByEmployeeId(newDriver.getEmployeeId());
 
@@ -126,8 +125,8 @@ public class DriverServiceImpl implements DriverService {
             }
             
             driverDao.create(newDriver);
-            getEntityManager().refresh(newDriver);
-            getEntityManager().getTransaction().commit();
+            em.refresh(newDriver);
+            em.getTransaction().commit();
 
             LOG.info("Driver created. " + newDriver.getName() + " "
                     + newDriver.getSurname()
@@ -140,9 +139,10 @@ public class DriverServiceImpl implements DriverService {
             LOG.warn("Something unexpected happend.", e);
             throw new LogiwebServiceException(e);
         } finally {
-            if (getEntityManager().getTransaction().isActive()) {
-                getEntityManager().getTransaction().rollback();
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
             }
+            em.close();
         }
 
     }
@@ -174,26 +174,29 @@ public class DriverServiceImpl implements DriverService {
      */
     private void updateOrAddDriver(Driver driver, boolean update)
             throws ServiceValidationException, LogiwebServiceException {
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverDao driverDao = ctx.createDriverDao(em);
         try {
             if (isEmployeeIdAvailiable(driver)) {
-                getEntityManager().getTransaction().begin();
+                em.getTransaction().begin();
                 if (update) {
                     driverDao.update(driver);
                 } else {
                     driverDao.create(driver);
                 }
-                getEntityManager().getTransaction().commit();
+                em.getTransaction().commit();
             } else {
                 throw new ServiceValidationException("Employee id "
                         + " occupied");
             }
         } catch (DaoException e) { 
-            LOG.warn("Something wrong..."); //TODO ????????
-            throw new LogiwebServiceException();
+            LOG.warn("Something unexpected happend.", e);
+            throw new LogiwebServiceException(e);
         } finally {
-            if (getEntityManager().getTransaction().isActive()) {
-                getEntityManager().getTransaction().rollback();
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
             }
+            em.close();
         }
     }
     
@@ -203,15 +206,28 @@ public class DriverServiceImpl implements DriverService {
      * @param driverToCheck
      * @return true if employee id is unoccupied or already belongs to this driver.
      * @throws DaoException if multiple result is found.
+     * @throws LogiwebServiceException 
      */
-    private boolean isEmployeeIdAvailiable(Driver driverToCheck) throws DaoException{
+    private boolean isEmployeeIdAvailiable(Driver driverToCheck) throws DaoException, LogiwebServiceException{
         int employeeId = driverToCheck.getEmployeeId();
 
-        getEntityManager().getTransaction().begin();
-        Driver driver = driverDao.findByEmployeeId(employeeId);
-        getEntityManager().getTransaction().commit();
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverDao driverDao = ctx.createDriverDao(em);
+        try {
+            em.getTransaction().begin();
+            Driver driver = driverDao.findByEmployeeId(employeeId);
+            em.getTransaction().commit();
 
-        return driver == null || driver.getId() == driverToCheck.getId();
+            return driver == null || driver.getId() == driverToCheck.getId();
+        } catch (DaoException e) { 
+            LOG.warn("Something unexpected happend.", e);
+            throw new LogiwebServiceException(e);
+        } finally {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            em.close();
+        }
     }
 
     /**
@@ -219,8 +235,10 @@ public class DriverServiceImpl implements DriverService {
      */
     @Override
     public void removeDriver(Driver driverToRemove) throws ServiceValidationException, LogiwebServiceException {
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverDao driverDao = ctx.createDriverDao(em);
         try {
-            getEntityManager().getTransaction().begin();
+            em.getTransaction().begin();
             Driver managedDriverToRemove = driverDao.find(driverToRemove
                     .getId());
 
@@ -235,7 +253,7 @@ public class DriverServiceImpl implements DriverService {
             }
 
             driverDao.delete(managedDriverToRemove);
-            getEntityManager().getTransaction().commit();
+            em.getTransaction().commit();
             LOG.info("Driver removed. Employee ID#" + managedDriverToRemove.getEmployeeId()
                     + " " + managedDriverToRemove.getName() + " " + managedDriverToRemove.getSurname());
         } catch (ServiceValidationException e) {
@@ -244,9 +262,10 @@ public class DriverServiceImpl implements DriverService {
             LOG.warn("Something unexpected happend.", e);
             throw new LogiwebServiceException(e);
         } finally {
-            if (getEntityManager().getTransaction().isActive()) {
-                getEntityManager().getTransaction().rollback();
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
             }
+            em.close();
         }
     }
 
@@ -256,13 +275,17 @@ public class DriverServiceImpl implements DriverService {
     @Override
     public Set<Driver> findUnassignedToTrucksDriversByMaxWorkingHoursAndCity(
             City city, float maxWorkingHours) throws LogiwebServiceException {
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverDao driverDao = ctx.createDriverDao(em);
+        DriverShiftJournaDao driverShiftJournalDao = ctx
+                .createDriverShiftJournaDao(em);
         try {
-            getEntityManager().getTransaction().begin();
+            em.getTransaction().begin();
             Set<Driver> freeDriversInCity = driverDao
                     .findByCityWhereNotAssignedToTruck(city);
             Set<DriverShiftJournal> journals = driverShiftJournalDao
                     .findThisMonthJournalsForDrivers(freeDriversInCity);
-            getEntityManager().getTransaction().commit();
+            em.getTransaction().commit();
             
             Map<Driver, Float> workingHours = sumWorkingHoursForThisMonth(journals);
             for (Driver driver : freeDriversInCity) {   //add drivers that don't yet have journals
@@ -279,9 +302,10 @@ public class DriverServiceImpl implements DriverService {
             LOG.warn(e);
             throw new LogiwebServiceException(e);
         } finally {
-            if (getEntityManager().getTransaction().isActive()) {
-                getEntityManager().getTransaction().rollback();
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
             }
+            em.close();
         }
     }
     
@@ -292,11 +316,14 @@ public class DriverServiceImpl implements DriverService {
     @Override
     public Set<DriverShiftJournal> findDriverJournalsForThisMonth(Driver driver)
             throws LogiwebServiceException {
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverShiftJournaDao driverShiftJournalDao = ctx
+                .createDriverShiftJournaDao(em);
         try {
-            getEntityManager().getTransaction().begin();
+            em.getTransaction().begin();
             Set<DriverShiftJournal> journals = driverShiftJournalDao
                     .findThisMonthJournalsForDrivers(driver);
-            getEntityManager().getTransaction().commit();
+            em.getTransaction().commit();
 
             return journals;
         } catch (DaoException e) {
@@ -306,12 +333,11 @@ public class DriverServiceImpl implements DriverService {
             LOG.warn(e);
             throw new LogiwebServiceException(e);
         } finally {
-            if (getEntityManager().getTransaction().isActive()) {
-                getEntityManager().getTransaction().rollback();
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
             }
+            em.close();
         }
-        
-        
     }
     
     /**
@@ -320,6 +346,9 @@ public class DriverServiceImpl implements DriverService {
      */
     @Override
     public float calculateWorkingHoursForDriver(Driver driver) throws LogiwebServiceException {
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverShiftJournaDao driverShiftJournalDao = ctx
+                .createDriverShiftJournaDao(em);
         try {
             Set<DriverShiftJournal> journals = driverShiftJournalDao
                     .findThisMonthJournalsForDrivers(driver);
@@ -336,9 +365,10 @@ public class DriverServiceImpl implements DriverService {
             LOG.warn(e);
             throw new LogiwebServiceException(e);
         } finally {
-            if (getEntityManager().getTransaction().isActive()) {
-                getEntityManager().getTransaction().rollback();
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
             }
+            em.close();
         }
     }
     
@@ -411,8 +441,11 @@ public class DriverServiceImpl implements DriverService {
      */
     @Override
     public void assignDriverToTruck(int driverId, int truckId) throws ServiceValidationException, LogiwebServiceException {
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        DriverDao driverDao = ctx.createDriverDao(em);
+        TruckDao truckDao = ctx.createTruckDao(em);
         try {
-            getEntityManager().getTransaction().begin();
+            em.getTransaction().begin();
             Driver driver = driverDao.find(driverId);
             Truck truck = truckDao.find(truckId);
             
@@ -432,7 +465,7 @@ public class DriverServiceImpl implements DriverService {
                 throw new ServiceValidationException("All crew positions are occupied. Can't add Driver to crew.");
             }
             
-            getEntityManager().getTransaction().commit();
+            em.getTransaction().commit();
         } catch (ServiceValidationException e) {
             throw e;
         } catch (DaoException e) {
@@ -442,10 +475,12 @@ public class DriverServiceImpl implements DriverService {
             LOG.warn(e);
             throw new LogiwebServiceException(e);
         } finally {
-            if (getEntityManager().getTransaction().isActive()) {
-                getEntityManager().getTransaction().rollback();
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
             }
+            em.close();
         }
+        
     }
     
 }

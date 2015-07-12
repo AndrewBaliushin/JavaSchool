@@ -8,6 +8,10 @@ import javax.persistence.Inheritance;
 
 import org.apache.log4j.Logger;
 
+import com.tsystems.javaschool.logiweb.LogiwebAppContext;
+import com.tsystems.javaschool.logiweb.dao.CargoDao;
+import com.tsystems.javaschool.logiweb.dao.CityDao;
+import com.tsystems.javaschool.logiweb.dao.DeliveryOrderDao;
 import com.tsystems.javaschool.logiweb.dao.UserDao;
 import com.tsystems.javaschool.logiweb.dao.exceptions.UserNotFoundDaoException;
 import com.tsystems.javaschool.logiweb.model.User;
@@ -25,13 +29,10 @@ public class UserServiceImpl implements UserService {
 
     private static final Logger LOG = Logger.getLogger(UserServiceImpl.class);
 
-    private EntityManager em;
-    
-    private UserDao userDao;
+    private LogiwebAppContext ctx;
 
-    public UserServiceImpl(EntityManager em, UserDao userDao) {
-        this.userDao = userDao;
-        this.em = em;
+    public UserServiceImpl(LogiwebAppContext ctx) {
+        this.ctx = ctx;
     }
 
     /**
@@ -39,6 +40,8 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public User getUserByMd5PassAndMail(String mail, String pass) throws LogiwebServiceException {
+        EntityManager em = ctx.getEntityManagerFactory().createEntityManager();
+        UserDao userDao = ctx.createUserDao(em);
         try {
             em.getTransaction().begin();
             User user = userDao.getByMd5PassAndMail(mail, getMD5Hash(pass));
@@ -54,6 +57,7 @@ public class UserServiceImpl implements UserService {
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }
+            em.close();
         }
     }
     

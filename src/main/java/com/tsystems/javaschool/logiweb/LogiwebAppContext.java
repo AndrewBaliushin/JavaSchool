@@ -54,6 +54,10 @@ public final class LogiwebAppContext {
         private static final LogiwebAppContext INSTANCE = new LogiwebAppContext();
     }
 
+    public static LogiwebAppContext getInstance() {
+        return SingletonHolder.INSTANCE;
+    }
+    
     /**
      * Holds name of session attribute where UserRole will be stored. Also used
      * to check if user is logged. (if equals to null then user is not logged
@@ -62,39 +66,18 @@ public final class LogiwebAppContext {
     public static final String SESSION_ATTR_TO_STORE_ROLE = "userRole";
 
     private static final String PERSISTENCE_UNIT = "logiweb";
-
+    
     volatile private EntityManagerFactory emf;
-    volatile private EntityManager em;
 
-    volatile private CargoDao cargoDao;
-    volatile private CityDao cityDao;
-    volatile private DeliveryOrderDao deliveryOrderDao;
-    volatile private DriverDao driverDao;
-    volatile private DriverShiftJournaDao driverShiftJournalDao;
-    volatile private TruckDao truckDao;
-    volatile private UserDao userDao;
-
-    volatile private TrucksService truckService;
+    private TrucksService truckService;
     volatile private DriverService driverService;
     volatile private UserService userService;
     volatile private CityService cityService;
     volatile private OrdersAndCargoService ordersAndCargoService;
+
     volatile private RouteService routeService;
 
     private LogiwebAppContext() {
-    }
-
-    public static LogiwebAppContext getInstance() {
-        return SingletonHolder.INSTANCE;
-    }
-
-    public RouteService getRouteService() {
-        if (routeService == null) {
-            synchronized (this) {
-                routeService = new RouteServiceStub();
-            }
-        }
-        return routeService;
     }
 
     /**
@@ -112,127 +95,84 @@ public final class LogiwebAppContext {
         return emf;
     }
 
-    public EntityManager getEntityManager() {
-        if (em == null || !em.isOpen()) {
-            synchronized (this) {
-                em = getEntityManagerFactory().createEntityManager();
-            }
-        }
-        return em;
+    public DriverShiftJournaDao createDriverShiftJournaDao(EntityManager em) {
+        return new DriverShiftJournalDaoJpa(
+                DriverShiftJournal.class, em);
     }
 
-    public CargoDao getCargoDao() {
-        if (cargoDao == null) {
-            synchronized (this) {
-                cargoDao = new CargoDaoJpa(Cargo.class, getEntityManager());
-            }
-        }
-        return cargoDao;
+    public CargoDao createCargoDao(EntityManager em) {
+        return new CargoDaoJpa(Cargo.class, em);
     }
 
-    public CityDao getCityDao() {
-        if (cityDao == null) {
-            synchronized (this) {
-                cityDao = new CityDaoJpa(City.class, getEntityManager());
-            }
-        }
-        return cityDao;
+    public CityDao createCityDao(EntityManager em) {
+        return new CityDaoJpa(City.class, em);
+    }
+
+    public DriverDao createDriverDao(EntityManager em) {
+        return new DriverDaoJpa(Driver.class, em);
+    }
+
+    public DeliveryOrderDao createDeliveryOrderDao(EntityManager em) {
+        return new DeliveryOrderDaoJpa(DeliveryOrder.class, em);
+    }
+
+    public TruckDao createTruckDao(EntityManager em) {
+        return new TruckDaoJpa(Truck.class, em);
+    }
+
+    public UserDao createUserDao(EntityManager em) {
+        return new UserDaoJpa(User.class, em);
     }
 
     public CityService getCityService() {
         if (cityService == null) {
             synchronized (this) {
-                cityService = new CityServiceImpl(getEntityManager(),
-                        getCityDao());
+                cityService = new CityServiceImpl(this);
             }
         }
         return cityService;
     }
 
-    public DeliveryOrderDao getDeliveryOrderDao() {
-        if (deliveryOrderDao == null) {
-            synchronized (this) {
-                deliveryOrderDao = new DeliveryOrderDaoJpa(DeliveryOrder.class,
-                        getEntityManager());
-            }
-        }
-        return deliveryOrderDao;
-    }
-
-    public OrdersAndCargoService getOrdersAndCargoService() {
-        if (ordersAndCargoService == null) {
-            synchronized (this) {
-                ordersAndCargoService = new OrdersAndCargoServiceImpl(
-                        getDeliveryOrderDao(), getCargoDao(), getCityDao(),
-                        getTruckDao(), getEntityManager());
-            }
-        }
-        return ordersAndCargoService;
-    }
-
-    public DriverDao getDriverDao() {
-        if (driverDao == null) {
-            synchronized (this) {
-                driverDao = new DriverDaoJpa(Driver.class, getEntityManager());
-            }
-        }
-        return driverDao;
-    }
-
-    public DriverShiftJournaDao geDriverShiftJournaDao() {
-        if (driverShiftJournalDao == null) {
-            synchronized (this) {
-                driverShiftJournalDao = new DriverShiftJournalDaoJpa(
-                        DriverShiftJournal.class, getEntityManager());
-            }
-        }
-        return driverShiftJournalDao;
-    }
-
-    public TruckDao getTruckDao() {
-        if (truckDao == null) {
-            synchronized (this) {
-                truckDao = new TruckDaoJpa(Truck.class, getEntityManager());
-            }
-        }
-        return truckDao;
-    }
-
-    public TrucksService getTruckService() {
-        if (truckService == null) {
-            synchronized (this) {
-                truckService = new TrucksSeviceimpl(getTruckDao(),
-                        getEntityManager());
-            }
-        }
-        return truckService;
-    }
-
     public DriverService getDriverService() {
         if (driverService == null) {
             synchronized (this) {
-                driverService = new DriverServiceImpl(getDriverDao(),
-                        getTruckDao(), geDriverShiftJournaDao(),
-                        getEntityManager());
+                driverService = new DriverServiceImpl(this);
             }
         }
         return driverService;
     }
 
-    public UserDao getUserDao() {
-        if (userDao == null) {
+    public OrdersAndCargoService getOrdersAndCargoService() {
+        if (ordersAndCargoService == null) {
             synchronized (this) {
-                userDao = new UserDaoJpa(User.class, getEntityManager());
+                ordersAndCargoService = new OrdersAndCargoServiceImpl(this);
             }
         }
-        return userDao;
+        return ordersAndCargoService;
+    }
+
+    public RouteService getRouteService() {
+        if (routeService == null) {
+            synchronized (this) {
+                routeService = new RouteServiceStub();
+            }
+        }
+        return routeService;
+    }
+
+    public TrucksService getTruckService() {
+        if (truckService == null) {
+            synchronized (this) {
+                truckService = new TrucksSeviceimpl(this);
+            }
+        }
+        return truckService;
     }
 
     public UserService getUserService() {
         if (userService == null) {
             synchronized (this) {
-                userService = new UserServiceImpl(getEntityManager(),
-                        getUserDao());
+                userService = new UserServiceImpl(this);
             }
         }
         return userService;
