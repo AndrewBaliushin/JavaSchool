@@ -1,28 +1,27 @@
 package com.tsystems.javaschool.logiweb.service.impl;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 
-import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
 import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
 
-import static org.hamcrest.Matchers.*;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.beans.HasPropertyWithValue.hasProperty;
-
-import org.hamcrest.collection.IsIterableContainingInAnyOrder;
-
+import com.tsystems.javaschool.logiweb.LogiwebAppContext;
 import com.tsystems.javaschool.logiweb.dao.DriverDao;
 import com.tsystems.javaschool.logiweb.dao.DriverShiftJournaDao;
 import com.tsystems.javaschool.logiweb.dao.TruckDao;
@@ -33,23 +32,38 @@ import com.tsystems.javaschool.logiweb.model.DriverShiftJournal;
 import com.tsystems.javaschool.logiweb.service.DriverService;
 import com.tsystems.javaschool.logiweb.service.exceptions.LogiwebServiceException;
 
+@RunWith(PowerMockRunner.class)
+@PrepareForTest({LogiwebAppContext.class})
 public class DriverServiceImplTest {
 
+    private LogiwebAppContext ctxMock;
     private DriverDao driverDaoMock;
     private TruckDao truckDaoMock;
     private DriverShiftJournaDao shiftDaoMock;
+    
+    private EntityManagerFactory emfMock;
     private EntityManager emMock;
     private EntityTransaction transMock;
     
     @Before
     public void setUp() {
-        driverDaoMock = mock(DriverDao.class);
-        truckDaoMock = mock(TruckDao.class);
-        shiftDaoMock = mock(DriverShiftJournaDao.class);
-        emMock = mock(EntityManager.class);
-        transMock = mock(EntityTransaction.class);
+        ctxMock = PowerMockito.mock(LogiwebAppContext.class);
         
-        when(emMock.getTransaction()).thenReturn(transMock);
+        emfMock = Mockito.mock(EntityManagerFactory.class);
+        emMock = Mockito.mock(EntityManager.class);
+        transMock = Mockito.mock(EntityTransaction.class);
+        
+        driverDaoMock = Mockito.mock(DriverDao.class);
+        truckDaoMock = Mockito.mock(TruckDao.class);
+        shiftDaoMock = Mockito.mock(DriverShiftJournaDao.class);
+        
+        Mockito.when(emMock.getTransaction()).thenReturn(transMock);
+        Mockito.when(ctxMock.getEntityManagerFactory()).thenReturn(emfMock);
+        Mockito.when(emfMock.createEntityManager()).thenReturn(emMock);
+       
+        Mockito.when(ctxMock.createDriverDao(Mockito.any(EntityManager.class))).thenReturn(driverDaoMock);
+        Mockito.when(ctxMock.createTruckDao(Mockito.any(EntityManager.class))).thenReturn(truckDaoMock);
+        Mockito.when(ctxMock.createDriverShiftJournaDao(Mockito.any(EntityManager.class))).thenReturn(shiftDaoMock);
     }
     
     
@@ -63,7 +77,7 @@ public class DriverServiceImplTest {
      */
     @Test
     public void testFindUnassignedToTrucksDriversByMaxWorkingHoursAndCity() throws DaoException, LogiwebServiceException {
-        DriverService driverService = new DriverServiceImpl(driverDaoMock, truckDaoMock, shiftDaoMock, emMock);
+        DriverService driverService = new DriverServiceImpl(ctxMock);
         
         Set<Driver> freeDrivers = new HashSet<Driver>();
         Driver d1 = new Driver(); //have 15 working hours in two shifts
@@ -124,8 +138,8 @@ public class DriverServiceImplTest {
         journals.add(j3);
         journals.add(j4);
         
-        when(driverDaoMock.findByCityWhereNotAssignedToTruck(Mockito.any(City.class))).thenReturn(freeDrivers);
-        when(shiftDaoMock.findThisMonthJournalsForDrivers(freeDrivers)).thenReturn(journals);
+        Mockito.when(driverDaoMock.findByCityWhereNotAssignedToTruck(Mockito.any(City.class))).thenReturn(freeDrivers);
+        Mockito.when(shiftDaoMock.findThisMonthJournalsForDrivers(freeDrivers)).thenReturn(journals);
         City anyCity = new City();
         
         //0 hours test. Expected: d3 (0 hours)
